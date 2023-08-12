@@ -1,0 +1,244 @@
+openapi: 3.0.0
+
+info:
+  description: Public facing API for the subscriptions system
+  title: Subscription System
+  version: 0.0.1
+
+paths:
+  /v1alpha/plans/{id}:
+    get:
+      tags:
+        - "Plans"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 5wbwf6yUxVBcr48AMbz9cb
+      responses:
+        200:
+          description: A subscription plan that can be subscribed to
+          headers:
+            ETag:
+              description: The current version of the entity as a quoted integer
+              schema:
+                type: string
+              example: "\"1\""
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanModel'
+    post:
+      tags:
+        - "Plans"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 5wbwf6yUxVBcr48AMbz9cb
+        - name: If-Match
+          in: header
+          required: true
+          description: |
+            The version we expect the entity to be in, must be an 
+            integer surrounded by double quotes, the value found in the ETag 
+            response header.
+          schema:
+            type: string
+          example: "\"1\""
+      requestBody:
+        $ref: '#/components/requestBodies/PlanUpdateRequest'
+      responses:
+        200:
+          description: The plan was successfully updated
+          headers:
+            Location:
+              description: The url reference location for the updated plan
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanModel'
+  /v1alpha/plans:
+    get:
+      tags:
+        - "Plans"
+      parameters:
+        - name: page
+          in: query
+          description: Which page to request of the paginated list
+          required: false
+          schema:
+            type: integer
+      responses:
+        200:
+          description: List all available subscription plans
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResult'
+                  - type: object
+                    properties:
+                      results:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PlanModel'
+    post:
+      tags:
+        - "Plans"
+      requestBody:
+        $ref: '#/components/requestBodies/PlanCreationRequest'
+      responses:
+        201:
+          description: The plan was successfully created
+          headers:
+            Location:
+              description: The url reference location for the newly created plan
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanModel'
+                
+components:
+  requestBodies:
+    PlanCreationRequest:
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - "name"
+              - "entitlements"
+              - "recurrence"
+            properties:
+              name:
+                type: string
+                description: The administrative name of the plan
+                minimum: 1
+                maximum: 50
+              description:
+                type: string
+                description: Overall description of the plan
+                maximum: 1000
+              entitlements:
+                type: array
+                description: | 
+                  The entitlements that always come with the plan, do not provide 
+                  duplicate entitlements by name
+                items:
+                  $ref: '#/components/schemas/EntitlementModel'
+                minimum: 1
+                uniqueItems: true
+              recurrence:
+                $ref: '#/components/schemas/RecurrenceModel'
+    PlanUpdateRequest:
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - "name"
+              - "recurrence"
+            properties:
+              name:
+                type: string
+                description: The administrative name of the plan
+                minimum: 1
+                maximum: 50
+              description:
+                type: string
+                description: Overall description of the plan
+                maximum: 1000
+              recurrence:
+                $ref: '#/components/schemas/RecurrenceModel'
+  schemas:
+    PlanModel:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the plan
+          format: Base58 url safe id https://github.com/Devskiller/friendly-id
+        name:
+          type: string
+          description: The administrative name of the plan
+          minLength: 1
+          maxLength: 50
+        description:
+          type: string
+          description: Overall description of the plan
+          maximum: 1000
+        createdAt:
+          type: integer
+          format: int64
+          description: The UTC unix timestamp of when this plan was created, in milliseconds
+        editedAt:
+          type: integer
+          format: int64
+          description: The UTC unix timestamp of when this plan was last edited, in milliseconds
+        createdBy:
+          type: string
+          description: The account id of the user who created the plan
+          format: Base58 url safe id https://github.com/Devskiller/friendly-id
+        editedBy:
+          type: string
+          description: The account id of the user who last edited the plan
+          format: Base58 url safe id https://github.com/Devskiller/friendly-id
+        entitlements:
+          type: array
+          description: The entitlements that always come with the plan
+          items:
+            $ref: '#/components/schemas/EntitlementModel'
+        recurrence:
+          $ref: '#/components/schemas/RecurrenceModel'
+    RecurrenceModel:
+      type: object
+      required:
+        - "period"
+        - "count"
+      properties:
+        period:
+          type: string
+          enum:
+            - DAY
+            - WEEK
+            - MONTH
+            - YEAR
+        count:
+          type: integer
+          minimum: 1
+    PaginatedResult:
+      type: object
+      properties:
+        total: 
+          type: number
+        page:
+          type: number
+        perPage:
+          type: number
+        hasNext:
+          type: boolean
+        hasPrevious:
+          type: boolean
+    EntitlementModel:
+      type: object
+      required:
+        - "name"
+        - "quantity"
+      properties:
+        name:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
