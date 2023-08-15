@@ -11,12 +11,7 @@ paths:
       tags:
         - "Plans"
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: 5wbwf6yUxVBcr48AMbz9cb
+        - $ref: '#/components/parameters/pathId'
       responses:
         200:
           description: A subscription plan that can be subscribed to
@@ -25,31 +20,22 @@ paths:
               description: The current version of the entity as a quoted integer
               schema:
                 type: string
-              example: "\"1\""
+              example: '"1"'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlanModel'
+        404:
+          description: Returned if no such plan with the provided id exists
     post:
       tags:
         - "Plans"
+      description: |
+        Update a subscription plan's data. You cannot update entitlements with 
+        this endpoint - see PATCH /v1alpha/plans/{id}/entitlements
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: 5wbwf6yUxVBcr48AMbz9cb
-        - name: If-Match
-          in: header
-          required: true
-          description: |
-            The version we expect the entity to be in, must be an 
-            integer surrounded by double quotes, the value found in the ETag 
-            response header.
-          schema:
-            type: string
-          example: "\"1\""
+        - $ref: '#/components/parameters/pathId'
+        - $ref: '#/components/parameters/ifMatch'
       requestBody:
         $ref: '#/components/requestBodies/PlanUpdateRequest'
       responses:
@@ -65,6 +51,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlanModel'
+        400:
+          description: The request was malformed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                timestamp: 2023-08-15T21:10:34.812400Z
+                status: 400
+                error: Bad Request
+                errors:
+                  name: 
+                    - size must be between 1 and 50
+                    - must not be blank
+                  recurrence.period:
+                    - 'must be a one of the following values: DAY, WEEK, MONTH, YEAR'
+                  path: /v1alpha/plans
+        404:
+          description: Returned if no such plan with the provided id exists
+        429:
+          description: | 
+            Your request conflicted with another which also made changes. Perform 
+            another get to retrieve the latest version of the entity
   /v1alpha/plans:
     get:
       tags:
@@ -104,12 +113,144 @@ paths:
               schema:
                 type: string
                 format: uri
+                example: /v1alpha/plans/5wbwf6yUxVBcr48AMbz9cb
+            ETag:
+              description: | 
+                The version of the plan, should be used in If-Match headers for 
+                subsequent modifications
+              schema:
+                type: string
+                format: '"<quoted integer>"'
+                example: '"1"'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlanModel'
+        400:
+          description: The request was malformed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                timestamp: 2023-08-15T21:10:34.812400Z
+                status: 400
+                error: Bad Request
+                errors:
+                  name: 
+                    - size must be between 1 and 50
+                    - must not be blank
+                  entitlements[0].quantity:
+                    - must not be null
+                  recurrence.period:
+                    - 'must be a one of the following values: DAY, WEEK, MONTH, YEAR'
+                  path: /v1alpha/plans
+  
+  /v1alpha/plans/{id}/entitlements:
+    patch:
+      tags:
+      - Plans
+      parameters:
+        - $ref: '#/components/parameters/pathId'
+        - $ref: '#/components/parameters/ifMatch'
+        - name: X-Patch-Operation
+          in: header
+          description: | 
+            The type of operation we're performing. The request body differs
+            based on the operation specified.
+          schema:
+            type: string
+            enum:
+              - ADD
+              - REMOVE
+            example: ADD
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: | 
+                    EntitlementAddRequest, used in conjunction with 
+                    X-Patch-Operation=ADD. If you provide an entitlement that
+                    is already included in this plan, it will be replaced with
+                    the value specified in this request, quantities are not
+                    additive.
+
+                    EntitlementDeleteRequest, used in conjunction with 
+                    X-Patch-Operation=REMOVE. Cannot remove all entitlements.
+              oneOf:
+                - $ref: '#/components/schemas/EntitlementAddRequest'
+                - $ref: '#/components/schemas/EntitlementDeleteRequest'        
+      responses:
+        200:
+          description: A successful modification of the entitlements
+          headers:
+            ETag:
+              description: | 
+                The version of the plan, should be used in If-Match headers for 
+                subsequent modifications
+              schema:
+                type: string
+                format: '"<quoted integer>"'
+                example: '"1"'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanModel'
+        400:
+          description: The request was malformed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                timestamp: 2023-08-15T21:10:34.812400Z
+                status: 400
+                error: Bad Request
+                errors:
+                  entitlements:
+                    - cannot remove all entitlements
+                  path: /v1alpha/plans/5wbwf6yUxVBcr48AMbz9cb/entitlements
+        422:
+          description: The X-Patch-Operation header provided was not recognised
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                timestamp: 2023-08-15T21:10:34.812400Z
+                status: 422
+                error: Unprocessable Entity
+                errors:
+                  X-Patch-Operation:
+                    - "Unknown operation: '<op>' Valid values are ADD and REMOVE" 
+                  path: /v1alpha/plans/5wbwf6yUxVBcr48AMbz9cb/entitlements
+        404:
+          description: Returned if no such plan with the provided id exists
+        429:
+          description: | 
+            Your request conflicted with another which also made changes. Perform 
+            another get to retrieve the latest version of the entity
                 
 components:
+  parameters:
+    pathId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: 5wbwf6yUxVBcr48AMbz9cb
+    ifMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: |
+        The version we expect the plan entity to be in, must be an 
+        integer surrounded by double quotes, the value found in the ETag 
+        response header.
+      schema:
+        type: string
+      example: '"1"'
   requestBodies:
     PlanCreationRequest:
       content:
@@ -162,6 +303,59 @@ components:
               recurrence:
                 $ref: '#/components/schemas/RecurrenceModel'
   schemas:
+    EntitlementAddRequest:
+      type: object
+      required:
+        - "entitlements"
+      properties:
+        entitlements:
+          type: array
+          description: | 
+            The entitlements that always come with the plan, do not provide 
+            duplicate entitlements by name
+          items:
+            $ref: '#/components/schemas/EntitlementModel'
+          minimum: 1
+          uniqueItems: true   
+    EntitlementDeleteRequest:
+      type: object
+      required:
+        - "entitlements"
+      properties:
+        entitlements:
+          type: array
+          description: | 
+            The entitlements to remove from the plan. You cannot remove 
+            all entitlements.
+          items:
+            type: string
+            minLength: 1
+          minimum: 1
+          uniqueItems: true
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          description: The timestamp of when this error occurred
+          format: ISO 8601 UTC
+        status:
+          type: integer
+          description: The http status associated with the error
+        error:
+          type: string
+          description: The general error that occurred
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            description: Property paths that had issues, in the format "property[.<subproperty>][.<...>]"
+            items:
+              type: string
+              description: Errors associated with the property path, may be empty
+        paths:
+          type: string
+          description: The path this error occurred on
     PlanModel:
       type: object
       properties:
