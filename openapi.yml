@@ -85,6 +85,13 @@ paths:
           required: false
           schema:
             type: integer
+        - name: namespace
+          in: query
+          description: The namespace to filter the response list with
+          required: false
+          schema:
+            type: string
+            minLength: 1
       responses:
         200:
           description: List all available subscription plans
@@ -271,6 +278,11 @@ components:
                 type: string
                 description: Overall description of the plan
                 maximum: 1000
+              namespace:
+                type: string
+                description: The namespace this plan lives in to enable multi tenancy if desired
+                minLength: 1
+                default: default
               entitlements:
                 type: array
                 description: | 
@@ -368,6 +380,10 @@ components:
           description: The administrative name of the plan
           minLength: 1
           maxLength: 50
+        namespace:
+          type: string
+          description: The namespace that this plan lives in, defaults to "default"
+          minLength: 1
         description:
           type: string
           description: Overall description of the plan
